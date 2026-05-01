@@ -3,6 +3,8 @@
 """
 import json
 import os
+import pymysql
+import logging
 
 from itemadapter import ItemAdapter
 
@@ -31,21 +33,67 @@ class JdPipeline:
         return item
 
 
-class MYSQLExportPipeline:
-    """导入MYSQL数据库"""
 
-    def open_spider(self, spider=None):
-        self.items = []
+class MysqlPipeline:
+    """优化版 MySQL Pipeline：批量提交 + 异常处理 + 配置外置"""
 
-    def process_item(self, item, spider=None):
-        self.items.append(ItemAdapter(item).asdict())
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls(
+            host=crawler.settings.get('MYSQL_HOST', '127.0.0.1'),
+            user=crawler.settings.get('MYSQL_USER', 'root'),
+            password=crawler.settings.get('MYSQL_PASSWORD', ''),
+            db=crawler.settings.get('MYSQL_DB', 'jd'),
+            batch_size=crawler.settings.getint('MYSQL_BATCH_SIZE', 50),
+        )
+
+    def __init__(self, host, user, password, db, batch_size):
+        self.host = host
+        self.user = user
+        self.password = password
+        self.db = db
+        self.batch_size = batch_size
+        self.items_buffer = []
+
+    def open_spider(self, spider):
+        try:
+            self.connection = pymysql.connect(
+                host=self.host,
+                user=self.user,
+                password=self.password,
+                db=self.db,
+                charset='utf8mb4',
+            )
+            self.cursor = self.connection.cursor()
+            spider.logger.info("MySQL 连接成功: %s/%s", self.host, self.db)
+        except pymysql.MySQLError as e:
+            spider.logger.error("MySQL 连接失败: %s", e)
+            raise
+
+    def process_item(self, item, spider):
+        self.items_buffer.append(dict(item))
+        if len(self.items_buffer) >= self.batch_size:
+            self._flush()
         return item
 
-    def close_spider(self, spider=None):
-        output_dir = os.path.dirname(os.path.dirname(__file__))
-        output_path = os.path.join(output_dir, "jd_products.json")
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(self.items, f, ensure_ascii=False, indent=2)
-        count = len(self.items)
-        if spider:
-            spider.logger.info("Saved %d products to %s", count, output_path)
+    def _flush(self):
+        if not self.items_buffer:
+            return
+        try:
+            data = self.items_buffer[0]
+            keys = ', '.join(data.keys())
+            placeholders = ', '.join(['%s'] * len(data))
+            sql = f"INSERT INTO book ({keys}) VALUES ({placeholders})"
+            self.cursor.executemany(sql, [tuple(d.values()) for d in self.items_buffer])
+            self.connection.commit()
+            logger.debug("批量插入 %d 条数据", len(self.items_buffer))
+        except pymysql.MySQLError as e:
+            self.connection.rollback()
+            logger.error("批量插入失败，已回滚: %s", e)
+        finally:
+            self.items_buffer.clear()
+
+    def close_spider(self, spider):
+        self._flush()
+        self.connection.close()
+        logger.info("MySQL 连接已关闭")

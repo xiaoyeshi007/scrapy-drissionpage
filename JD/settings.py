@@ -29,10 +29,14 @@ DOWNLOADER_MIDDLEWARES = {
 # 管道
 ITEM_PIPELINES = {
     "JD.pipelines.JdPipeline": 200,         # 去重 + 清洗
-    "JD.pipelines.MYSQLExportPipeline": 300,  # MYSQL 导出
-    #""  #导入mMYSQL数据库
+    "JD.pipelines.MysqlPipeline": 300,      # 导入MYSQL
 }
-
+                                            #数据库连接设置
+MYSQL_HOST = '127.0.0.1'
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = '914915'
+MYSQL_DB = 'book'
+MYSQL_BATCH_SIZE = 50
 # 编码
 FEED_EXPORT_ENCODING = "utf-8"
 
