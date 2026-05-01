@@ -31,7 +31,7 @@ class JdPipeline:
         return item
 
 
-class JsonExportPipeline:
+class MYSQLExportPipeline:
     """导入MYSQL数据库"""
 
     def open_spider(self, spider=None):

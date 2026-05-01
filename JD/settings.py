@@ -29,7 +29,7 @@ DOWNLOADER_MIDDLEWARES = {
 # 管道
 ITEM_PIPELINES = {
     "JD.pipelines.JdPipeline": 200,         # 去重 + 清洗
-    "JD.pipelines.JsonExportPipeline": 300,  # JSON 导出
+    "JD.pipelines.MYSQLExportPipeline": 300,  # MYSQL 导出
     #""  #导入mMYSQL数据库
 }
 
