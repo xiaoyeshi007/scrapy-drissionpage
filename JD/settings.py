@@ -18,7 +18,7 @@ DOWNLOAD_DELAY = 2
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "*/*",
     "Accept-Language": "zh-CN,zh;q=0.9",
-    "Referer": "https://list.jd.com/",
+    "Referer": "https://search.jd.com/",
 }
 
 # 下载中间件 — 启用 DrissionPage

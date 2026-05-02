@@ -1,129 +1,128 @@
 """
-京东图书列表页爬虫 — Scrapy + DrissionPage
-通过 Edge 浏览器渲染 React 列表页，提取商品数据
+京东图书搜索爬虫 — Scrapy + DrissionPage
+通过 Edge 浏览器渲染搜索结果页，提取商品数据，支持翻页
 
 用法:
-    scrapy crawl jdbook                       # 全部分类
-    scrapy crawl jdbook -a limit=3            # 只爬前 3 个分类
-    scrapy crawl jdbook -a cat=1713,3258,3297 # 指定分类
+    scrapy crawl jdbook                             # 全部分类
+    scrapy crawl jdbook -a limit=3                  # 只爬前 3 个分类
+    scrapy crawl jdbook -a keyword=小说             # 搜索指定关键词
+    scrapy crawl jdbook -a keyword=小说 -a pages=3  # 搜索关键词并爬3页
 """
 import scrapy
-import json
 
 from JD.items import JdItem
 
-# 京东列表页 React CSS 选择器 (class 名含哈希值，用 *= 匹配前缀)
-SEL_TEXT = '[class*="_text_1k2fi"]'                   # 商品名称
-SEL_PRICE = '[class*="_price_1agky"]'                 # 价格
-SEL_SHOP = '[class*="_limit_1phiu"]'                  # 店铺
-SEL_SALES = '[class*="goods_volume"] span[title]'     # 销量
-SEL_LIKES = '[class*="_tml_1xkku"]'                   # 种草数
-SEL_IMG = 'img[class*="_img"][data-src]'              # 图片
+# 京东搜索结果页 CSS 选择器 (React class 哈希值，用 *= 匹配)
+SEL_NAME = 'span[title]'                                     # 商品名称(title属性)
+SEL_PRICE_CONTAINER = '[class*="_price_65r2s"]'              # 价格容器
+SEL_SHOP = '[class*="_limit_1skn4"]'                         # 店铺名
+SEL_SALES = '[class*="goods_volume"] span[title]'            # 销量
+SEL_IMG = 'img[class*="_img"][data-src]'                     # 商品图片
+
+# 图书搜索关键词列表
+BOOK_KEYWORDS = [
+    "小说", "文学", "青春文学", "中国当代小说", "外国小说",
+    "侦探推理", "科幻", "武侠", "言情", "历史小说",
+    "童书", "绘本", "教育", "哲学", "心理学",
+    "经济管理", "计算机", "科普", "传记", "艺术",
+]
 
 
 class JdbookSpider(scrapy.Spider):
     name = "jdbook"
-    allowed_domains = ["pjapi.jd.com", "list.jd.com"]
+    allowed_domains = ["search.jd.com", "pjapi.jd.com"]
 
-    # 命令行参数: -a limit=5  -a cat=1713,3258,3297
     custom_settings = {
         "CONCURRENT_REQUESTS": 1,
     }
-    #初始化与参数支持
-    def __init__(self, *args, limit=None, cat=None, **kwargs):
+
+    def __init__(self, *args, keyword=None, limit=None, pages=10, **kwargs):
         super().__init__(*args, **kwargs)
-        self.limit = int(limit) if limit else None
-        self.single_cat = cat  # 指定单个分类
+        self.keyword = keyword           # 指定搜索关键词
+        self.limit = int(limit) if limit else None  # 限制关键词数
+        self.max_pages = int(pages)      # 每个关键词最大翻页数
 
     def start_requests(self):
-        if self.single_cat:
-            # 直接爬指定分类
-            url = f"https://list.jd.com/list.html?cat={self.single_cat}"
+        if self.keyword:
+            # 搜索指定关键词
+            url = self._build_search_url(self.keyword)
             yield scrapy.Request(
                 url=url,
                 callback=self.parse_book_list,
-                meta={"big_category": "指定分类", "small_category": self.single_cat},
+                meta={"keyword": self.keyword, "page": 1,
+                      "big_category": "搜索", "small_category": self.keyword},
             )
         else:
-            # 从分类 API 获取类目
-            yield scrapy.Request(
-                url="https://pjapi.jd.com/book/sort?source=bookSort",
-                callback=self.parse_categories,
-                dont_filter=True,
-            )
-
-    def parse_categories(self, response):
-        """解析分类 API，为每个二级类目生成列表页请求"""
-        try:
-            data = json.loads(response.text)["data"]
-        except (json.JSONDecodeError, KeyError):
-            self.logger.error("API获取失败")
-            return
-
-        def build_url(*ids):
-            cat_str = ",".join(str(int(i)) for i in ids)
-            return f"https://list.jd.com/list.html?cat={cat_str}"
-
-        count = 0
-        for cat1 in data:
-            cat1_id = cat1["categoryId"]
-            cat1_name = cat1["categoryName"]
-
-            for cat2 in cat1.get("sonList", []):
-                cat2_id = cat2["categoryId"]
-                cat2_name = cat2["categoryName"]
-                url = build_url(cat1_id, cat2_id)
-
-                self.logger.info("Category: %s > %s", cat1_name, cat2_name)
+            # 用预设关键词列表搜索
+            keywords = BOOK_KEYWORDS[:self.limit] if self.limit else BOOK_KEYWORDS
+            for kw in keywords:
+                url = self._build_search_url(kw)
+                self.logger.info("搜索关键词: %s", kw)
                 yield scrapy.Request(
                     url=url,
                     callback=self.parse_book_list,
-                    meta={
-                        "big_category": cat1_name,
-                        "small_category": cat2_name,
-                    },
+                    meta={"keyword": kw, "page": 1,
+                          "big_category": "图书", "small_category": kw},
                 )
 
-                count += 1
-                if self.limit and count >= self.limit:
-                    self.logger.info("Reached limit of %d categories", self.limit)
-                    return
+    @staticmethod
+    def _build_search_url(keyword):
+        return f"https://search.jd.com/Search?keyword={keyword}&enc=utf-8"
 
     def parse_book_list(self, response):
-        """解析列表页 HTML，提取商品数据"""
+        """解析搜索结果页 HTML，提取商品数据"""
+        keyword = response.meta.get("keyword", "")
+        page_num = response.meta.get("page", 1)
         big_cat = response.meta.get("big_category", "")
         small_cat = response.meta.get("small_category", "")
 
-        items = response.css("div[data-sku]")
+        cards = response.css("div[data-sku]")
         seen = set()
         count = 0
 
-        for item in items:
-            sku = item.attrib.get("data-sku", "")
+        for card in cards:
+            sku = card.attrib.get("data-sku", "")
             if not sku or sku in seen:
                 continue
             seen.add(sku)
 
-            def safe_text(sel):
-                els = item.css(sel)
-                if not els:
-                    return ""
-                return "".join(els[0].css("::text").getall()).replace("\n", "").strip()
+            # 商品名称
+            name = ""
+            for el in card.css(SEL_NAME):
+                t = el.attrib.get("title", "")
+                if len(t) > 3:
+                    name = t
+                    break
 
-            def safe_attr(sel, attr):
-                els = item.css(sel)
-                return els[0].attrib.get(attr, "") if els else ""
+            # 价格：从价格容器中提取所有文本，解析整数和小数
+            price = "询价"
+            price_els = card.css(SEL_PRICE_CONTAINER)
+            if price_els:
+                all_text = "".join(price_els[0].css("::text").getall())
+                all_text = all_text.replace("¥", "").replace("￥", "").strip()
+                # 提取数字部分
+                import re
+                nums = re.findall(r'\d+', all_text)
+                if nums:
+                    if len(nums) >= 2:
+                        price = nums[0] + "." + nums[1]
+                    else:
+                        price = nums[0]
 
-            name = safe_text(SEL_TEXT)
-            price = safe_text(SEL_PRICE).replace("\n", "") or "询价"
-            shop = safe_text(SEL_SHOP)
-            sales = safe_attr(SEL_SALES, "title")
-            likes = safe_attr(SEL_LIKES, "title")
+            # 店铺
+            shop_els = card.css(SEL_SHOP + "::text")
+            shop = shop_els.get("").strip() if shop_els else ""
 
-            image = safe_attr(SEL_IMG, "data-src")
-            if not image:
-                image = safe_attr(SEL_IMG, "src")
-            if image.startswith("//"):
+            # 销量
+            sales_els = card.css(SEL_SALES)
+            sales = sales_els.attrib.get("title", "") if sales_els else ""
+
+            # 图片
+            img_els = card.css(SEL_IMG)
+            image = ""
+            if img_els:
+                image = img_els.attrib.get("data-src", "") or img_els.attrib.get("src", "")
+            if image and image.startswith("//"):
                 image = "https:" + image
 
             if name:
@@ -133,7 +132,7 @@ class JdbookSpider(scrapy.Spider):
                     price=price,
                     shop=shop,
                     sales=sales,
-                    likes=likes,
+                    likes="",
                     image=image,
                     link=f"https://item.jd.com/{sku}.html",
                     big_category=big_cat,
@@ -142,6 +141,21 @@ class JdbookSpider(scrapy.Spider):
                 count += 1
 
         self.logger.info(
-            "Extracted %d products from %s > %s",
-            count, big_cat, small_cat,
+            "第%d页 [%s] 提取 %d 个商品",
+            page_num, keyword or small_cat, count,
         )
+
+        # 翻页：有商品且未达到最大页数则继续
+        if count > 0 and page_num < self.max_pages:
+            yield scrapy.Request(
+                url=response.url,
+                callback=self.parse_book_list,
+                meta={
+                    "keyword": keyword,
+                    "page": page_num + 1,
+                    "big_category": big_cat,
+                    "small_category": small_cat,
+                    "click_next_page": True,
+                },
+                dont_filter=True,
+            )
