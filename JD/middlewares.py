@@ -23,6 +23,7 @@ class DrissionPageMiddleware:
     @classmethod
     def from_crawler(cls, crawler):
         middleware = cls()
+        middleware.max_pages = crawler.settings.getint('MAX_PAGES', 100)
         crawler.signals.connect(middleware.spider_closed, signal=signals.spider_closed)
         return middleware
 
@@ -60,11 +61,10 @@ class DrissionPageMiddleware:
         if "search.jd.com" not in url and "list.jd.com" not in url:
             return None
 
-        max_pages = request.meta.get("max_pages", 1)
-        logger.info("采集: %s (最多%d页)", url, max_pages)
-        return self._fetch_with_pagination(request, max_pages)
+        logger.info("采集: %s (最多%d页)", url, self.max_pages)
+        return self._fetch_with_pagination(request)
 
-    def _fetch_with_pagination(self, request, max_pages):
+    def _fetch_with_pagination(self, request):
         """打开标签页，自动翻页采集，合并HTML返回"""
         tab = self._new_tab(request.url)
 
@@ -87,8 +87,13 @@ class DrissionPageMiddleware:
         all_html = tab.html
         logger.info("第1页采集完成")
 
-        # 翻页采集第2~N页
-        for page_num in range(2, max_pages + 1):
+        # 翻页采集直到没有下一页或达到最大页数
+        page_num = 1
+        while True:
+            if self.max_pages and page_num >= self.max_pages:
+                logger.info("已达到最大页数: %d 页", self.max_pages)
+                break
+
             next_btn = tab.ele('css:div[class*=_pagination_next_]', timeout=5)
             if not next_btn:
                 logger.info("没有更多页了")
@@ -98,7 +103,7 @@ class DrissionPageMiddleware:
             time.sleep(5)
             self._scroll_to_load(tab)
 
-            # 检查是否真的翻页了（无新商品则停止）
+            page_num += 1
             page_html = tab.html
             if 'data-sku' not in page_html:
                 logger.info("第%d页无商品，停止翻页", page_num)

@@ -4,9 +4,7 @@
 翻页逻辑由 middleware 处理
 
 用法:
-    scrapy crawl jdbook                # 全部分类
-    scrapy crawl jdbook -a limit=3     # 只爬前 3 个分类
-    scrapy crawl jdbook -a pages=3     # 每个分类爬 3 页
+    scrapy crawl jdbook
 """
 import re
 import json
@@ -29,10 +27,15 @@ class JdbookSpider(scrapy.Spider):
         "CONCURRENT_REQUESTS": 1,
     }
 
-    def __init__(self, *args, limit=None, pages=10, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.limit = int(limit) if limit else None
-        self.max_pages = int(pages)
+        self.category_limit = 0
+
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        spider = super().from_crawler(crawler, *args, **kwargs)
+        spider.category_limit = crawler.settings.getint('CATEGORY_LIMIT', 0)
+        return spider
 
     def start_requests(self):
         yield scrapy.Request(
@@ -60,13 +63,12 @@ class JdbookSpider(scrapy.Spider):
                 yield scrapy.Request(
                     url=url,
                     callback=self.parse_book_list,
-                    meta={"max_pages": self.max_pages,
-                          "big_category": cat1_name, "small_category": cat2_name},
+                    meta={"big_category": cat1_name, "small_category": cat2_name},
                 )
 
                 count += 1
-                if self.limit and count >= self.limit:
-                    self.logger.info("已达到限制: %d 个分类", self.limit)
+                if self.category_limit and count >= self.category_limit:
+                    self.logger.info("已达到分类限制: %d 个", self.category_limit)
                     return
 
     def parse_book_list(self, response):
