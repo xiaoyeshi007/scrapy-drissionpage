@@ -37,7 +37,7 @@ class JdPipeline:
 
 
 class MysqlPipeline:
-    """优化版 MySQL Pipeline：批量提交 + 异常处理 + 配置外置"""
+    """批量提交 + 异常处理 + 配置外置"""
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -78,8 +78,6 @@ class MysqlPipeline:
                 price VARCHAR(50) COMMENT '价格',
                 shop VARCHAR(200) COMMENT '店铺',
                 sales VARCHAR(50) COMMENT '销量',
-                likes VARCHAR(100) COMMENT '种草数',
-                image VARCHAR(500) COMMENT '图片链接',
                 link VARCHAR(500) COMMENT '商品链接',
                 big_category VARCHAR(100) COMMENT '大分类',
                 small_category VARCHAR(100) COMMENT '小分类'

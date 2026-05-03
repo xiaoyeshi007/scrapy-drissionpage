@@ -70,7 +70,7 @@ class JdbookSpider(scrapy.Spider):
                     return
 
     def parse_book_list(self, response):
-        """解析搜索结果页（含多页合并HTML），提取商品数据"""
+        """解析搜索结果页，提取商品数据"""
         big_cat = response.meta.get("big_category", "")
         small_cat = response.meta.get("small_category", "")
 
@@ -117,8 +117,6 @@ class JdbookSpider(scrapy.Spider):
                     price=price,
                     shop=shop,
                     sales=sales,
-                    likes="",
-                    image="",
                     link=f"https://item.jd.com/{sku}.html",
                     big_category=big_cat,
                     small_category=small_cat,
