@@ -1,18 +1,14 @@
 """
 商品数据处理管道
 """
-import json
-import os
 import pymysql
 import logging
 
 from itemadapter import ItemAdapter
-
 logger = logging.getLogger(__name__)
 
-
 class JdPipeline:
-    """去重 + 数据清洗"""
+    """去重"""
 
     seen_skus = set()
 
@@ -25,12 +21,6 @@ class JdPipeline:
             from scrapy.exceptions import DropItem
             raise DropItem(f"Duplicate SKU: {sku}")
         self.seen_skus.add(sku)
-
-        # 清洗价格：去掉 ¥ 符号，保留纯数字
-        price = adapter.get("price", "")
-        if price and price != "询价":
-            cleaned = price.replace("¥", "").replace("￥", "").strip()
-            adapter["price"] = cleaned if cleaned else price
 
         return item
 

@@ -38,7 +38,7 @@ MYSQL_PASSWORD = '914915'
 MYSQL_DB = 'book'
 MYSQL_BATCH_SIZE = 50
 # 爬取控制
-CATEGORY_LIMIT = 0    # 爬取分类数，0 = 全部分类
+CATEGORY_LIMIT = 0     # 爬取分类数，0 = 全部分类
 MAX_PAGES = 100        # 每个分类最大翻页数，0 = 不限
 
 # 编码

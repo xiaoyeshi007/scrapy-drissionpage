@@ -77,7 +77,7 @@ class JdbookSpider(scrapy.Spider):
         small_cat = response.meta.get("small_category", "")
 
         cards = response.css("div[data-sku]")
-        seen = set()
+        seen = set() #sku列表，后续去重
         count = 0
 
         for card in cards:
