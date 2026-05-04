@@ -1,11 +1,3 @@
-"""
-京东图书搜索爬虫 — Scrapy + DrissionPage
-通过分类API获取类目，用搜索引擎采集商品数据
-翻页逻辑由 middleware 处理
-
-用法:
-    scrapy crawl jdbook
-"""
 import re
 import json
 import scrapy

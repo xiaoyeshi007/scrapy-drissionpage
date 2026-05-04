@@ -1,6 +1,5 @@
 import scrapy
 
-
 class JdItem(scrapy.Item):
     sku_id = scrapy.Field()           # SKU ID
     name = scrapy.Field()             # 商品名称

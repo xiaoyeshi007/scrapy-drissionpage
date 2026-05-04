@@ -1,7 +1,3 @@
-"""
-DrissionPage 下载中间件
-ChromiumPage 多标签页模式采集数据，内部处理翻页逻辑
-"""
 import time
 import logging
 
@@ -9,9 +5,7 @@ from scrapy import signals
 from scrapy.http import HtmlResponse
 
 logger = logging.getLogger(__name__)
-
 EDGE_ADDRESS = "127.0.0.1:9222"
-
 
 class DrissionPageMiddleware:
     """ChromiumPage 中间件：自动翻页采集"""

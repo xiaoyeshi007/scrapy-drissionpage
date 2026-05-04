@@ -1,6 +1,3 @@
-"""
-商品数据处理管道
-"""
 import pymysql
 import logging
 
@@ -9,26 +6,18 @@ logger = logging.getLogger(__name__)
 
 class JdPipeline:
     """去重"""
-
     seen_skus = set()
-
     def process_item(self, item, spider=None):
         adapter = ItemAdapter(item)
-
-        # 去重
         sku = adapter.get("sku_id", "")
         if sku in self.seen_skus:
             from scrapy.exceptions import DropItem
             raise DropItem(f"Duplicate SKU: {sku}")
         self.seen_skus.add(sku)
-
         return item
 
-
-
 class MysqlPipeline:
-    """批量提交 + 异常处理 + 配置外置"""
-
+    """批量提交 + 异常处理"""
     @classmethod
     def from_crawler(cls, crawler):
         return cls(
@@ -80,7 +69,7 @@ class MysqlPipeline:
             spider.logger.error("MySQL 连接失败: %s", e)
             raise
 
-    def process_item(self, item, spider):
+    def process_item(self, item, spider):#缓冲
         self.items_buffer.append(dict(item))
         if len(self.items_buffer) >= self.batch_size:
             self._flush()
